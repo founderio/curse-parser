@@ -22,9 +22,10 @@ import (
 )
 
 type Author struct {
-	Name string
-	Role string
-	URL  *url.URL
+	Name     string
+	Role     string
+	URL      *url.URL
+	ImageURL *url.URL
 }
 
 type Image struct {
@@ -35,6 +36,7 @@ type Image struct {
 type Download struct {
 	Name        string
 	URL         *url.URL
+	DirectURL   *url.URL
 	ReleaseType string
 	GameVersion string
 	Downloads   uint64
@@ -47,6 +49,12 @@ type Category struct {
 	ImageURL *url.URL
 }
 
+type Dependency struct {
+	Name     string
+	URL      *url.URL
+	ImageURL *url.URL
+}
+
 type ModsDotCurseDotCom struct {
 	Title        string
 	DontationURL *url.URL
@@ -54,9 +62,10 @@ type ModsDotCurseDotCom struct {
 	Likes     uint64
 	Favorites uint64
 
-	Authors       []Author
-	Categories    []Category
-	License       string
+	Authors    []Author
+	Categories []Category
+	License    string
+
 	CurseforgeURL *url.URL
 
 	Game    string
@@ -68,6 +77,49 @@ type ModsDotCurseDotCom struct {
 
 	Updated time.Time
 	Created time.Time
+
+	Screenshots []Image
+	Downloads   []Download
+}
+
+type CurseforgeDotCom struct {
+	OverviewURL *url.URL
+	FilesURL *url.URL
+	ImagesURL *url.URL
+	DependenciesURL *url.URL
+	DependentsURL *url.URL
+
+	CurseURL         *url.URL
+	ReportProjectURL *url.URL
+	IssuesURL        *url.URL
+	WikiURL          *url.URL
+	SourceURL        *url.URL
+
+	Title             string
+	ProjectURL        *url.URL
+	DontationURL      *url.URL
+	ImageURL          *url.URL
+	ImageThumbnailURL *url.URL
+	RootGameCategory    string
+	RootGameCategoryURL *url.URL
+	License             string
+	LicenseURL          *url.URL
+	Game    string
+	GameURL *url.URL
+
+
+	//AvgDownloads          uint64
+	//AvgDownloadsTimeframe string
+	TotalDownloads uint64
+
+	Created          time.Time
+	Updated time.Time
+
+	//Likes     uint64
+	//Favorites uint64
+
+	Authors             []Author
+	Categories          []Category
 
 	Screenshots []Image
 	Downloads   []Download

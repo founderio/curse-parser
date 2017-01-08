@@ -29,6 +29,12 @@ import (
 
 var pathCache = NewXpathCache()
 
+// Parse mod pages from mods.curse.com.
+// Supported & tested examples:
+// * https://mods.curse.com/mc-mods/minecraft/238424-taam
+// * https://mods.curse.com/texture-packs/minecraft/equanimity-32x
+// * https://mods.curse.com/worlds/minecraft/246026-skyblock-3
+// * https://mods.curse.com/addons/wow/pawn
 func ParseModsDotCurseDotCom(documentURL string, resp *http.Response) (*ModsDotCurseDotCom, error) {
 	defer resp.Body.Close()
 
@@ -65,7 +71,8 @@ func ParseModsDotCurseDotCom(documentURL string, resp *http.Response) (*ModsDotC
 	// Donation Link
 	results.DontationURL, err = pathCache.URL(projectOverview, "div[@class='meta-info']/div/a/@href")
 	if err != nil {
-		return nil, fmt.Errorf("error resolving value 'DontationURL': %s", err.Error())
+		// Some projects do not have a donation URL -> don't fail!
+		results.DontationURL = nil
 	}
 
 	// Authors

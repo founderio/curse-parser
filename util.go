@@ -197,11 +197,11 @@ func (cache *XpathCache) Int(context *xmlpath.Node, path string) (int64, error) 
 // The given xpath is automatically compiled or pulled from cache.
 // The returned value is parsed to an int64, base 10, and interpreted as a unix time stamp.
 // Commas (decimal separator) are stripped before parsing.
-// The time.Time returned will be set to UTC.
+// The time.Time returned will be set to UTC. If there is a parsing error, time.Unix(ts, 0).UTC() is returned.
 func (cache *XpathCache) UnixTimestamp(context *xmlpath.Node, path string) (time.Time, error) {
 	ts, err := cache.Int(context, path)
 	if err != nil {
-		return time.Now(), err
+		return time.Unix(0, 0).UTC(), err
 	}
 
 	return time.Unix(ts, 0).UTC(), nil

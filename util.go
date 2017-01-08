@@ -41,6 +41,9 @@ func FetchPage(url string) (*http.Response, error) {
 	return client.Do(req)
 }
 
+// Instance for internal use.
+var pathCache = NewXpathCache()
+
 // A wrapper for the xmlpath package.
 // The wrapper functions cache the compiled XPaths instead of recompiling every time.
 // The cached instances are kept in this struct. Create a new instance with NewXpathCache().

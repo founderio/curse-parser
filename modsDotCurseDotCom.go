@@ -27,8 +27,6 @@ import (
 	"gopkg.in/xmlpath.v2"
 )
 
-var pathCache = NewXpathCache()
-
 // Parse mod pages from mods.curse.com.
 // Supported & tested examples:
 // * https://mods.curse.com/mc-mods/minecraft/238424-taam

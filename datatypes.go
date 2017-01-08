@@ -48,8 +48,8 @@ type Category struct {
 }
 
 type ModsDotCurseDotCom struct {
-	Title         string
-	DontationLink string
+	Title        string
+	DontationURL *url.URL
 
 	Likes     uint64
 	Favorites uint64

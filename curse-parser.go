@@ -12,7 +12,7 @@ Copyright $today.year Oliver Kahrmann
   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
   or implied. See the License for the specific language governing
   permissions and limitations under the License.
- */
+*/
 
 package curse
 
@@ -23,13 +23,19 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 
 	"gopkg.in/xmlpath.v2"
 )
 
+var pathCache = NewXpathCache()
+
 func ParseModsDotCurseDotCom(documentURL string, resp *http.Response) (*ModsDotCurseDotCom, error) {
 	defer resp.Body.Close()
+
+	documentURLParsed, err := url.Parse(strings.TrimSpace(documentURL))
+	if err != nil {
+		return nil, err
+	}
 
 	root, err := xmlpath.ParseHTML(resp.Body)
 	if err != nil {
@@ -42,110 +48,85 @@ func ParseModsDotCurseDotCom(documentURL string, resp *http.Response) (*ModsDotC
 	// Temp-Variable for values to be parsed
 	var parseString string
 
-	//TODO: extract the xpath compilation to a central place
-
 	/*
 		Get the project-overview node for faster processing
 	*/
-	pathProjectOverview := xmlpath.MustCompile("//*[@id='project-overview']")
-	iter := pathProjectOverview.Iter(root)
-	if !iter.Next() {
+	projectOverview, ok := pathCache.Node(root, "//*[@id='project-overview']")
+	if !ok {
 		return nil, errors.New("could not find 'project-overview' in response body")
 	}
-	projectOverview := iter.Node()
 
 	// Title
-	title := xmlpath.MustCompile("header/h2")
-	results.Title, ok = title.String(projectOverview)
+	results.Title, ok = pathCache.String(projectOverview, "header/h2")
 	if !ok {
 		return nil, fmt.Errorf("error resolving value 'Title'")
 	}
 
 	// Donation Link
-	donation := xmlpath.MustCompile("div[@class='meta-info']/div/a/@href")
-	results.DontationLink, ok = donation.String(projectOverview)
-	if !ok {
-		return nil, fmt.Errorf("error resolving value 'DonationLink'")
+	results.DontationURL, err = pathCache.URL(projectOverview, "div[@class='meta-info']/div/a/@href")
+	if err != nil {
+		return nil, fmt.Errorf("error resolving value 'DontationURL': %s", err.Error())
 	}
 
 	// Authors
-	authors := xmlpath.MustCompile("div[@class='main-details']/div[@class='main-info']/ul[@class='authors group']/li")
-	role := xmlpath.MustCompile("text()")
-	authorName := xmlpath.MustCompile("a")
-	relativeLink := xmlpath.MustCompile("a/@href")
 
-	iter = authors.Iter(projectOverview)
+	iter := pathCache.Iter(projectOverview, "div[@class='main-details']/div[@class='main-info']/ul[@class='authors group']/li")
 	for iter.Next() {
 		authorNode := iter.Node()
 		author := Author{}
 
 		// Author Name
-		author.Name, ok = authorName.String(authorNode)
+		author.Name, ok = pathCache.String(authorNode, "a")
 		if !ok {
 			return nil, fmt.Errorf("error resolving value 'Author/Name'")
 		}
 
 		// Author Role
-		author.Role, ok = role.String(authorNode)
+		author.Role, ok = pathCache.String(authorNode, "text()")
 		if !ok {
 			return nil, fmt.Errorf("error resolving value 'Author/Role'")
 		}
 		author.Role = strings.TrimSuffix(author.Role, ": ")
 
 		// Link to author's page
-		parseString, ok = relativeLink.String(authorNode)
-		if !ok {
-			return nil, fmt.Errorf("error resolving value 'Author/URL'")
-		}
-		author.URL, err = combineUrl(documentURL, parseString)
+		author.URL, err = pathCache.URLWithBaseURL(authorNode, "a/@href", documentURLParsed)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing value 'Author/URL': %s", err.Error())
+			return nil, fmt.Errorf("error resolving value 'Author/URL': %s", err.Error())
 		}
+
 		results.Authors = append(results.Authors, author)
 	}
 
 	// Categories
-	categories := xmlpath.MustCompile("div[@class='main-details']/div[@class='main-info']/a")
-	categoryName := xmlpath.MustCompile("@title")
-	categoryURL := xmlpath.MustCompile("@href")
-	categoryImageURL := xmlpath.MustCompile("img/@src")
 
-	iter = categories.Iter(projectOverview)
+	iter = pathCache.Iter(projectOverview, "div[@class='main-details']/div[@class='main-info']/a")
 	for iter.Next() {
 		categoryNode := iter.Node()
 		category := Category{}
 
 		// Author Name
-		category.Name, ok = categoryName.String(categoryNode)
+		category.Name, ok = pathCache.String(categoryNode, "@title")
 		if !ok {
 			return nil, fmt.Errorf("error resolving value 'Category/Name'")
 		}
 
 		// Link to category page
-		parseString, ok = categoryURL.String(categoryNode)
-		if !ok {
-			return nil, fmt.Errorf("error resolving value 'Category/URL'")
-		}
-		category.URL, err = combineUrl(documentURL, parseString)
+		category.URL, err = pathCache.URLWithBaseURL(categoryNode, "@href", documentURLParsed)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing value 'Author/Url': %s", err.Error())
+			return nil, fmt.Errorf("error resolving value 'Category/URL': %s", err.Error())
 		}
 
 		// Link to category image
-		parseString, ok = categoryImageURL.String(categoryNode)
-		if !ok {
-			return nil, fmt.Errorf("error resolving value 'Category/ImageURL'")
-		}
-		category.ImageURL, err = url.Parse(parseString)
+		category.ImageURL, err = pathCache.URL(categoryNode, "img/@src")
 		if err != nil {
-			return nil, fmt.Errorf("error parsing value 'Category/ImageURL': %s", err.Error())
+			return nil, fmt.Errorf("error resolving value 'Category/ImageURL': %s", err.Error())
 		}
+
 		results.Categories = append(results.Categories, category)
 	}
 
 	// Likes
-	likes := xmlpath.MustCompile("div[@class='main-details']/div[@class='main-info']/div[@class='appreciate']/ul/li[@class='grats']/span")
-	parseString, ok = likes.String(projectOverview)
+	parseString, ok = pathCache.String(projectOverview, "div[@class='main-details']/div[@class='main-info']/div[@class='appreciate']/ul/li[@class='grats']/span")
 	if !ok {
 		return nil, fmt.Errorf("error resolving value 'Likes'")
 	}
@@ -159,23 +140,25 @@ func ParseModsDotCurseDotCom(documentURL string, resp *http.Response) (*ModsDotC
 	/*
 		Get the details-list node for faster processing
 	*/
-	pathDetailsList := xmlpath.MustCompile("div/div/ul[@class='details-list']")
-	iter = pathDetailsList.Iter(projectOverview)
-	if !iter.Next() {
+	detailsList, ok := pathCache.Node(projectOverview, "div/div/ul[@class='details-list']")
+	if !ok {
 		return nil, errors.New("could not find 'details-list' in response body")
 	}
-	detailsList := iter.Node()
 
 	// Game
-	game := xmlpath.MustCompile("li[@class='game']")
-	results.Game, ok = game.String(detailsList)
+	results.Game, ok = pathCache.String(detailsList, "li[@class='game']")
 	if !ok {
 		return nil, fmt.Errorf("error resolving value 'Game'")
 	}
 
+	// URL
+	results.GameURL, err = pathCache.URLWithBaseURL(detailsList, "li[@class='game']/a/@href", documentURLParsed)
+	if err != nil {
+		return nil, fmt.Errorf("error resolving value 'GameURL': %s", err.Error())
+	}
+
 	// Average Downloads
-	averageDownloads := xmlpath.MustCompile("li[@class='average-downloads']")
-	parseString, ok = averageDownloads.String(detailsList)
+	parseString, ok = pathCache.String(detailsList, "li[@class='average-downloads']")
 	if !ok {
 		return nil, fmt.Errorf("error resolving value 'Average Downloads'")
 	}
@@ -188,8 +171,7 @@ func ParseModsDotCurseDotCom(documentURL string, resp *http.Response) (*ModsDotC
 	results.AvgDownloadsTimeframe = split[1]
 
 	// Total Downloads
-	totalDownloads := xmlpath.MustCompile("li[@class='downloads']")
-	parseString, ok = totalDownloads.String(detailsList)
+	parseString, ok = pathCache.String(detailsList, "li[@class='downloads']")
 	if !ok {
 		return nil, fmt.Errorf("error resolving value 'Total Downloads'")
 	}
@@ -201,37 +183,19 @@ func ParseModsDotCurseDotCom(documentURL string, resp *http.Response) (*ModsDotC
 	}
 
 	// Updated
-	updated := xmlpath.MustCompile("li[@class='updated' and text()='Updated ']/abbr/@data-epoch")
-	parseString, ok = updated.String(detailsList)
-	if !ok {
-		return nil, fmt.Errorf("error resolving value 'Updated'")
-	}
-	// Format of this value: "nnn Total Downloads" -> get the first 'field'
-	parseString = strings.Fields(strings.TrimSpace(parseString))[0]
-	var ts int64
-	ts, err = strconv.ParseInt(strings.TrimSpace(parseString), 10, 64)
+	results.Updated, err = pathCache.UnixTimestamp(detailsList, "li[@class='updated' and text()='Updated ']/abbr/@data-epoch")
 	if err != nil {
 		return nil, fmt.Errorf("error parsing number for 'Updated': %s", err.Error())
 	}
-	results.Updated = time.Unix(ts, 0).UTC()
 
 	// Created
-	created := xmlpath.MustCompile("li[@class='updated' and text()='Created ']/abbr/@data-epoch")
-	parseString, ok = created.String(detailsList)
-	if !ok {
-		return nil, fmt.Errorf("error resolving value 'Created'")
-	}
-	// Format of this value: "nnn Total Downloads" -> get the first 'field'
-	parseString = strings.Fields(strings.TrimSpace(parseString))[0]
-	ts, err = strconv.ParseInt(strings.TrimSpace(parseString), 10, 64)
+	results.Created, err = pathCache.UnixTimestamp(detailsList, "li[@class='updated' and text()='Created ']/abbr/@data-epoch")
 	if err != nil {
 		return nil, fmt.Errorf("error parsing number for 'Created': %s", err.Error())
 	}
-	results.Created = time.Unix(ts, 0).UTC()
 
 	// Favorites
-	favorites := xmlpath.MustCompile("li[@class='favorited']")
-	parseString, ok = favorites.String(detailsList)
+	parseString, ok = pathCache.String(detailsList, "li[@class='favorited']")
 	if !ok {
 		return nil, fmt.Errorf("error resolving value 'Favorites'")
 	}
@@ -243,43 +207,26 @@ func ParseModsDotCurseDotCom(documentURL string, resp *http.Response) (*ModsDotC
 	}
 
 	// Project Site // Curseforge URL
-	curseforge := xmlpath.MustCompile("li[@class='curseforge']/a/@href")
-	parseString, ok = curseforge.String(detailsList)
-	if !ok {
-		return nil, fmt.Errorf("error resolving value 'Curseforge URL'")
-	}
-	results.CurseforgeURL, err = url.Parse(strings.TrimSpace(parseString))
+	results.CurseforgeURL, err = pathCache.URL(detailsList, "li[@class='curseforge']/a/@href")
 	if err != nil {
 		return nil, fmt.Errorf("error parsing URL for 'Curseforge URL': %s", err.Error())
 	}
-	// URL may be specified in schemeless format "//www.curseforge.com/..."
-	if results.CurseforgeURL.Scheme == "" {
-		results.CurseforgeURL.Scheme = "https"
-	}
 
 	// License
-	license := xmlpath.MustCompile("li[@class='license']")
-	parseString, ok = license.String(detailsList)
+	parseString, ok = pathCache.String(detailsList, "li[@class='license']")
 	if !ok {
 		return nil, fmt.Errorf("error resolving value 'License'")
 	}
 	results.License = strings.TrimPrefix(strings.TrimSpace(parseString), "License: ")
 
 	// Screenshots
-	screenshots := xmlpath.MustCompile("//div[@id='screenshot-gallery']//div[@class='listing-body']/ul/li/a")
-	srcImage := xmlpath.MustCompile("@href")
-
-	iter = screenshots.Iter(root)
+	iter = pathCache.Iter(root, "//div[@id='screenshot-gallery']//div[@class='listing-body']/ul/li/a")
 	for iter.Next() {
 		screenshotNode := iter.Node()
 		screenshot := Image{}
 
 		// URL
-		parseString, ok = srcImage.String(screenshotNode)
-		if !ok {
-			return nil, fmt.Errorf("error resolving value 'Screenshot/URL'")
-		}
-		screenshot.URL, err = url.Parse(strings.TrimSpace(parseString))
+		screenshot.URL, err = pathCache.URL(screenshotNode, "@href")
 		if err != nil {
 			return nil, fmt.Errorf("error parsing URL for 'Screenshot/URL': %s", err.Error())
 		}
@@ -288,67 +235,46 @@ func ParseModsDotCurseDotCom(documentURL string, resp *http.Response) (*ModsDotC
 	}
 
 	// Downloads
-	downloads := xmlpath.MustCompile("//div[@id='tab-other-downloads']//div[@class='listing-body']/table/tbody/tr")
-	downloadName := xmlpath.MustCompile("td[1]/a")
-	downloadURL := xmlpath.MustCompile("td[1]/a/@href")
-	downloadReleaseType := xmlpath.MustCompile("td[2]")
-	downloadGameVersion := xmlpath.MustCompile("td[3]")
-	downloadDownloads := xmlpath.MustCompile("td[4]")
-	downloadDate := xmlpath.MustCompile("td[5]/abbr/@data-epoch")
-
-	iter = downloads.Iter(root)
+	iter = pathCache.Iter(root, "//div[@id='tab-other-downloads']//div[@class='listing-body']/table/tbody/tr")
 	for iter.Next() {
 		downloadNode := iter.Node()
 		download := Download{}
 
 		// Name
-		download.Name, ok = downloadName.String(downloadNode)
+		download.Name, ok = pathCache.String(downloadNode, "td[1]/a")
 		if !ok {
 			return nil, fmt.Errorf("error resolving value 'Download/Name'")
 		}
 
 		// URL
-		parseString, ok = downloadURL.String(downloadNode)
-		if !ok {
-			return nil, fmt.Errorf("error resolving value 'Download/URL'")
-		}
-		download.URL, err = combineUrl(documentURL, parseString)
+		download.URL, err = pathCache.URLWithBaseURL(downloadNode, "td[1]/a/@href", documentURLParsed)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing URL for 'Download/URL': %s", err.Error())
+			return nil, fmt.Errorf("error resolving value 'Download/URL': %s", err.Error())
 		}
 
 		// ReleaseType
-		download.ReleaseType, ok = downloadReleaseType.String(downloadNode)
+		download.ReleaseType, ok = pathCache.String(downloadNode, "td[2]")
 		if !ok {
 			return nil, fmt.Errorf("error resolving value 'Download/ReleaseType'")
 		}
 
 		// GameVersion
-		download.GameVersion, ok = downloadGameVersion.String(downloadNode)
+		download.GameVersion, ok = pathCache.String(downloadNode, "td[3]")
 		if !ok {
 			return nil, fmt.Errorf("error resolving value 'Download/GameVersion'")
 		}
 
 		// Downloads
-		parseString, ok = downloadDownloads.String(downloadNode)
-		if !ok {
-			return nil, fmt.Errorf("error resolving value 'Download/Downloads'")
-		}
-		download.Downloads, err = strconv.ParseUint(strings.Replace(parseString, ",", "", -1), 10, 64)
+		download.Downloads, err = pathCache.UInt(downloadNode, "td[4]")
 		if err != nil {
 			return nil, fmt.Errorf("error parsing value for 'Download/Downloads': %s", err.Error())
 		}
 
 		// Date
-		parseString, ok = downloadDate.String(downloadNode)
-		if !ok {
-			return nil, fmt.Errorf("error resolving value 'Download/Date'")
-		}
-		ts, err = strconv.ParseInt(strings.TrimSpace(parseString), 10, 64)
+		download.Date, err = pathCache.UnixTimestamp(downloadNode, "td[5]/abbr/@data-epoch")
 		if err != nil {
 			return nil, fmt.Errorf("error parsing number for 'Download/Date': %s", err.Error())
 		}
-		download.Date = time.Unix(ts, 0).UTC()
 
 		results.Downloads = append(results.Downloads, download)
 	}

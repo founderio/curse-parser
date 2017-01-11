@@ -82,11 +82,15 @@ func (cache *XpathCache) AddToCache(uncompiled string, compiled *xmlpath.Path) {
 	cache.paths[uncompiled] = compiled
 }
 
-// Wrapper around path.String(context).
+// Wrapper around path.String(context). Trims space.
 // The given xpath is automatically compiled or pulled from cache.
 func (cache *XpathCache) String(context *xmlpath.Node, path string) (string, bool) {
 	p := cache.GetCompiledPath(path)
-	return p.String(context)
+	s, ok := p.String(context)
+	if !ok {
+		return s, ok
+	}
+	return strings.TrimSpace(s), true
 }
 
 // Wrapper around path.Iter(context).
@@ -117,7 +121,7 @@ func (cache *XpathCache) URL(context *xmlpath.Node, path string) (*url.URL, erro
 		return nil, errors.New("node not found")
 	}
 	// Parse to url
-	url, err := url.Parse(strings.TrimSpace(urlString))
+	url, err := url.Parse(urlString)
 	if err != nil {
 		return url, err
 	}

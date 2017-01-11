@@ -21,6 +21,7 @@ import (
 	"time"
 	"strings"
 	//"github.com/gobs/pretty"
+	"net/url"
 )
 
 func TestParseModsDotCurseDotCom(t *testing.T) {
@@ -187,13 +188,20 @@ func TestParseCurseforgeDotCom(t *testing.T) {
 		"https://minecraft.curseforge.com/projects/taam",
 	}
 
-	for idx, url := range testUrls {
-		resp, err := FetchPage(url)
+	for idx, tURL := range testUrls {
+		resp, err := FetchPage(tURL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var pURL *url.URL
+		pURL, err = url.Parse(tURL)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		results, err := ParseCurseforgeDotCom(url, resp, true)
+		results := new(CurseforgeDotCom)
+
+		err = ParseCurseForge(pURL, resp, results, true, CFSectionOverview, CFOptionNone)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -201,7 +209,7 @@ func TestParseCurseforgeDotCom(t *testing.T) {
 		//pretty.PrettyPrint(results)
 
 		// For first element (taam project page), check for existence of the donation URL.
-		validateResultsCurseforge(t, url, results, idx == 0)
+		validateResultsCurseforge(t, tURL, results, idx == 0)
 
 	}
 }

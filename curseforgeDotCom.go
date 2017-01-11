@@ -25,42 +25,82 @@ import (
 	"gopkg.in/xmlpath.v2"
 )
 
-// Parse mod pages from curseforge.com (or minecraft.curseforge.com).
+// Fetch & parse mod pages from curseforge.com
+// (minecraft.curseforge.com, or feed-the-beast.com, or or or - For a complete list, see curseforge.com).
+//
+// This function expects to get the project URL (e.g. "https://minecraft.curseforge.com/projects/taam") and will build
+// all other required URLs based on the content selection.
+//
+// Other parameters:
+//
+// sections: Defines the content pages to be fetched & parsed.
+//      If 0 (CFHeader) is passed only, the overview page
+//      is loaded and only the header values are parsed & returned.
+//      Multiple values can be added to select multiple sections, e.g. CFSectionFiles | CFSectionImages
+//      This causes multiple sequential or parallel requests to CurseForge.
+// options: Pass CFOptionNone, or one or more of the other options to tweak some behaviour of the content parsers.
+//      Multiple values can be added to define multiple options, e.g. CFOptionOverviewRecentFiles | CFOptionFilesNoPagination
+// parallel: Select whether to make parallel or sequential calls.
+//      Pass true to load all selected pages simultaneously.
+//      Disclaimer: Be aware that CurseForge might impose rate limiting on you should you overdo the parallelism.
+func FetchCurseForge(projectURL *url.URL, sections CurseForgeSections, options CurseForgeOptions, parallel bool) (*CurseforgeDotCom, error) {
+	var err error
+	results := new(CurseforgeDotCom)
+
+	if sections == CFSectionHeader {
+		//TODO: WHY does that require a string??
+		var resp *http.Response
+
+		resp, err = FetchPage(projectURL.String())
+		if err != nil {
+			return nil, err
+		}
+		err = ParseCurseForge(projectURL, resp, results, true, CFSectionHeader, options)
+
+	} else {
+		//TODO: Build required URLs & fetch
+	}
+	return results, nil
+}
+
+// Parse mod pages from curseforge.com
+// (minecraft.curseforge.com, or feedthebeast.com, or or or - For a complete list, see curseforge.com).
+//
 // Supported & tested examples:
 // * https://minecraft.curseforge.com/projects/taam
-func ParseCurseforgeDotCom(documentURL string, resp *http.Response, parseHeader bool) (*CurseforgeDotCom, error) {
+//
+// results: The struct passed in results is filled with the parsed data.
+// parseHeader: true, if the header values shall be parsed.
+// section: A SINGLE section to tell which parser to use.
+func ParseCurseForge(documentURL *url.URL, resp *http.Response, results *CurseforgeDotCom, parseHeader bool, section CurseForgeSections, options CurseForgeOptions) error {
 	defer resp.Body.Close()
-
-	documentURLParsed, err := url.Parse(strings.TrimSpace(documentURL))
-	if err != nil {
-		return nil, err
-	}
 
 	root, err := xmlpath.ParseHTML(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing xml/http: %s", err.Error())
+		return fmt.Errorf("error parsing xml/http: %s", err.Error())
 	}
 
-	results := new(CurseforgeDotCom)
-
 	if parseHeader {
-		err = parseCFHeader(results, documentURLParsed, root)
+		err = parseCFHeader(results, documentURL, root, options)
 		if err != nil {
-			return nil, fmt.Errorf("error processing CF header: %s", err.Error())
+			return fmt.Errorf("error processing CF header: %s", err.Error())
+		}
+	}
+
+	switch section {
+	case CFSectionOverview:
+		err = parseCFOverview(results, documentURL, root, options)
+		if err != nil {
+			return fmt.Errorf("error processing CF Overview: %s", err.Error())
 		}
 	}
 
 	//TODO: determine where we are and parse the correct part
 
-	err = parseCFOverview(results, documentURLParsed, root)
-	if err != nil {
-		return nil, fmt.Errorf("error processing CF Overview: %s", err.Error())
-	}
-
-	return results, nil
+	return nil
 }
 
-func parseCFHeader(results *CurseforgeDotCom, documentURLParsed *url.URL, root *xmlpath.Node) error {
+func parseCFHeader(results *CurseforgeDotCom, documentURLParsed *url.URL, root *xmlpath.Node, options CurseForgeOptions) error {
 	var ok bool
 	var err error
 
@@ -176,7 +216,7 @@ func parseCFHeader(results *CurseforgeDotCom, documentURLParsed *url.URL, root *
 	return nil
 }
 
-func parseCFOverview(results *CurseforgeDotCom, documentURLParsed *url.URL, root *xmlpath.Node) error {
+func parseCFOverview(results *CurseforgeDotCom, documentURL *url.URL, root *xmlpath.Node, options CurseForgeOptions) error {
 	var ok bool
 	var err error
 
@@ -186,11 +226,9 @@ func parseCFOverview(results *CurseforgeDotCom, documentURLParsed *url.URL, root
 		return fmt.Errorf("did not find atf section: %s", err.Error())
 	}
 
-	// Project ID is NOT part of the downloaded file for some reason...
-	/*results.ProjectID, ok = pathCache.String(sidebar, "//ul[@class='cf-details project-details']/li[div[@class='info-label']='Project ID ']/div[@class='info-data']")
-	if !ok {
-		return fmt.Errorf("error resolving value 'ProjectID'")
-	}*/
+	/*
+	Sidebar Values
+	 */
 
 	results.Created, err = pathCache.UnixTimestamp(sidebar, "//ul[@class='cf-details project-details']/li[div[@class='info-label']='Created ']/div[@class='info-data']/abbr/@data-epoch")
 	if err != nil {
@@ -211,54 +249,15 @@ func parseCFOverview(results *CurseforgeDotCom, documentURLParsed *url.URL, root
 	if !ok {
 		return fmt.Errorf("error resolving value 'License'")
 	}
-	results.License = strings.TrimSpace(results.License)
 
-	results.LicenseURL, err = pathCache.URLWithBaseURL(sidebar, "//ul[@class='cf-details project-details']/li[div[@class='info-label']='License ']/div[@class='info-data']/a/@href", documentURLParsed)
+	results.LicenseURL, err = pathCache.URLWithBaseURL(sidebar, "//ul[@class='cf-details project-details']/li[div[@class='info-label']='License ']/div[@class='info-data']/a/@href", documentURL)
 	if err != nil {
 		return fmt.Errorf("error resolving value 'LicenseURL': %s", err.Error())
 	}
 
-
-
-	results.CurseURL, err = pathCache.URLWithBaseURL(sidebar, "//li[@class='view-on-curse']/a/@href", documentURLParsed)
-	if err != nil {
-		return fmt.Errorf("error resolving value 'CurseURL': %s", err.Error())
-	}
-
-	results.ReportProjectURL, err = pathCache.URLWithBaseURL(sidebar, "//li[@class='report-project']/a/@href", documentURLParsed)
-	if err != nil {
-		return fmt.Errorf("error resolving value 'ReportProjectURL': %s", err.Error())
-	}
-
-	members := pathCache.Iter(sidebar, "//ul[@class='cf-details project-members']/li")
-	for members.Next() {
-		memberNode := members.Node()
-
-		author := Author{}
-
-		author.Name, ok = pathCache.String(memberNode, "div[@class='info-wrapper']/p/a[1]/span")
-		if !ok {
-			return fmt.Errorf("error resolving value 'Author/Name'")
-		}
-
-		author.URL, err = pathCache.URLWithBaseURL(memberNode, "div[@class='info-wrapper']/p/a[1]/@href", documentURLParsed)
-		if err != nil {
-			return fmt.Errorf("error resolving value 'Author/URL': %s", err.Error())
-		}
-
-		author.Role, ok = pathCache.String(memberNode, "div[@class='info-wrapper']/p/span[@class='title']")
-		if !ok {
-			return fmt.Errorf("error resolving value 'Author/Role'")
-		}
-
-		author.ImageURL, err = pathCache.URLWithBaseURL(memberNode, "div/div/a/img/@src", documentURLParsed)
-		if err != nil {
-			return fmt.Errorf("error resolving value 'Author/ImageURL': %s", err.Error())
-		}
-
-		results.Authors = append(results.Authors, author)
-
-	}
+	/*
+	Categories
+	 */
 
 	categories := pathCache.Iter(sidebar, "//ul[@class='cf-details project-categories']/li")
 	for categories.Next() {
@@ -271,12 +270,12 @@ func parseCFOverview(results *CurseforgeDotCom, documentURLParsed *url.URL, root
 			return fmt.Errorf("error resolving value 'Category/Name'")
 		}
 
-		category.URL, err = pathCache.URLWithBaseURL(categoryNode, "a/@href", documentURLParsed)
+		category.URL, err = pathCache.URLWithBaseURL(categoryNode, "a/@href", documentURL)
 		if err != nil {
 			return fmt.Errorf("error resolving value 'Category/URL': %s", err.Error())
 		}
 
-		category.ImageURL, err = pathCache.URLWithBaseURL(categoryNode, "a/img/@src", documentURLParsed)
+		category.ImageURL, err = pathCache.URLWithBaseURL(categoryNode, "a/img/@src", documentURL)
 		if err != nil {
 			return fmt.Errorf("error resolving value 'Category/ImageURL': %s", err.Error())
 		}
@@ -284,6 +283,157 @@ func parseCFOverview(results *CurseforgeDotCom, documentURLParsed *url.URL, root
 		results.Categories = append(results.Categories, category)
 
 	}
+
+	/*
+	Links
+	 */
+
+	results.CurseURL, err = pathCache.URLWithBaseURL(sidebar, "//li[@class='view-on-curse']/a/@href", documentURL)
+	if err != nil {
+		return fmt.Errorf("error resolving value 'CurseURL': %s", err.Error())
+	}
+	//TODO: extract the curse project ID from the URL
+
+	results.ReportProjectURL, err = pathCache.URLWithBaseURL(sidebar, "//li[@class='report-project']/a/@href", documentURL)
+	if err != nil {
+		return fmt.Errorf("error resolving value 'ReportProjectURL': %s", err.Error())
+	}
+
+	/*
+	Members
+	 */
+
+	members := pathCache.Iter(sidebar, "//ul[@class='cf-details project-members']/li")
+	for members.Next() {
+		memberNode := members.Node()
+
+		author := Author{}
+
+		author.Name, ok = pathCache.String(memberNode, "div[@class='info-wrapper']/p/a[1]/span")
+		if !ok {
+			return fmt.Errorf("error resolving value 'Author/Name'")
+		}
+
+		author.URL, err = pathCache.URLWithBaseURL(memberNode, "div[@class='info-wrapper']/p/a[1]/@href", documentURL)
+		if err != nil {
+			return fmt.Errorf("error resolving value 'Author/URL': %s", err.Error())
+		}
+
+		author.Role, ok = pathCache.String(memberNode, "div[@class='info-wrapper']/p/span[@class='title']")
+		if !ok {
+			return fmt.Errorf("error resolving value 'Author/Role'")
+		}
+
+		author.ImageURL, err = pathCache.URLWithBaseURL(memberNode, "div/div/a/img/@src", documentURL)
+		if err != nil {
+			return fmt.Errorf("error resolving value 'Author/ImageURL': %s", err.Error())
+		}
+
+		results.Authors = append(results.Authors, author)
+
+	}
+
+	/*
+	Recent Files
+	 */
+	if options.Has(CFOptionOverviewRecentFiles) {
+		recents := pathCache.Iter(sidebar, "//div[@class='cf-sidebar-wrapper']//li[@class='file-tag']")
+		for recents.Next() {
+			fileTag := recents.Node()
+
+			file := File{}
+
+			file.ReleaseType, ok = pathCache.String(fileTag, "div[@class='e-project-file-phase-wrapper']/div/@title")
+			if !ok {
+				return fmt.Errorf("error resolving value 'File/ReleaseType'")
+			}
+
+			file.DirectURL, err = pathCache.URLWithBaseURL(fileTag, "//div[@class='project-file-download-button']/a/@href", documentURL)
+			if err != nil {
+				return fmt.Errorf("error resolving value 'File/DirectURL': %s", err.Error())
+			}
+
+			file.URL, err = pathCache.URLWithBaseURL(fileTag, "//div[@class='project-file-name-container']/a/@href", documentURL)
+			if err != nil {
+				return fmt.Errorf("error resolving value 'File/URL': %s", err.Error())
+			}
+
+			file.Name, ok = pathCache.String(fileTag, "//div[@class='project-file-name-container']/a/text()")
+			if !ok {
+				return fmt.Errorf("error resolving value 'File/Name'")
+			}
+
+			file.Date, err = pathCache.UnixTimestamp(fileTag, "//abbr/@data-epoch")
+			if err != nil {
+				return fmt.Errorf("error resolving value 'File/Date': %s", err.Error())
+			}
+
+			results.Downloads = append(results.Downloads, file)
+		}
+	}
+
+	return nil
+}
+
+func parseCFFiles(results *CurseforgeDotCom, documentURL *url.URL, root *xmlpath.Node, options CurseForgeOptions) error {
+	var ok bool
+	var err error
+
+	recents := pathCache.Iter(root, "//tr[@class='project-file-list-item']")
+	for recents.Next() {
+		fileTag := recents.Node()
+
+		file := File{}
+
+		file.ReleaseType, ok = pathCache.String(fileTag, "td[@class='project-file-release-type']/div/@title")
+		if !ok {
+			return fmt.Errorf("error resolving value 'File/ReleaseType'")
+		}
+
+		file.DirectURL, err = pathCache.URLWithBaseURL(fileTag, "//div[@class='project-file-download-button']/a/@href", documentURL)
+		if err != nil {
+			return fmt.Errorf("error resolving value 'File/DirectURL': %s", err.Error())
+		}
+
+		file.URL, err = pathCache.URLWithBaseURL(fileTag, "//div[@class='project-file-name-container']/a/@href", documentURL)
+		if err != nil {
+			return fmt.Errorf("error resolving value 'File/URL': %s", err.Error())
+		}
+
+		file.Name, ok = pathCache.String(fileTag, "//div[@class='project-file-name-container']/a/text()")
+		if !ok {
+			return fmt.Errorf("error resolving value 'File/Name'")
+		}
+
+		_, ok = pathCache.String(fileTag, "//div[@class='project-file-name-container']/a[@class='more-files-tag']")
+		file.HasAdditionalFiles = ok
+
+
+		file.SizeInfo, ok = pathCache.String(fileTag, "//td[@class='project-file-size']/a/text()")
+		if !ok {
+			return fmt.Errorf("error resolving value 'File/SizeInfo'")
+		}
+
+
+		file.Date, err = pathCache.UnixTimestamp(fileTag, "//abbr/@data-epoch")
+		if err != nil {
+			return fmt.Errorf("error resolving value 'File/Date': %s", err.Error())
+		}
+
+		file.GameVersion, ok = pathCache.String(fileTag, "//span[@class='version-label']/text()")
+		if !ok {
+			return fmt.Errorf("error resolving value 'File/GameVersion'")
+		}
+
+		file.Downloads, err = pathCache.UInt(fileTag, "//td[@class='project-file-downloads']/text()")
+		if err != nil {
+			return fmt.Errorf("error resolving value 'File/Downloads': %s", err.Error())
+		}
+
+		results.Downloads = append(results.Downloads, file)
+	}
+
+	//TODO: pagination
 
 	return nil
 }

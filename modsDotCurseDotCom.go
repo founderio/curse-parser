@@ -91,7 +91,7 @@ func ParseModsDotCurseDotCom(documentURL string, resp *http.Response) (*ModsDotC
 		if !ok {
 			return nil, fmt.Errorf("error resolving value 'Author/Role'")
 		}
-		author.Role = strings.TrimSuffix(author.Role, ": ")
+		author.Role = strings.TrimSuffix(author.Role, ":")
 
 		// Link to author's page
 		author.URL, err = pathCache.URLWithBaseURL(authorNode, "a/@href", documentURLParsed)
@@ -136,7 +136,7 @@ func ParseModsDotCurseDotCom(documentURL string, resp *http.Response) (*ModsDotC
 		return nil, fmt.Errorf("error resolving value 'Likes'")
 	}
 	// Format of this value: "nnn Likes" -> get the first 'field'
-	parseString = strings.Fields(strings.TrimSpace(parseString))[0]
+	parseString = strings.Fields(parseString)[0]
 	results.Likes, err = strconv.ParseUint(parseString, 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing number for 'Likes': %s", err.Error())
@@ -168,7 +168,7 @@ func ParseModsDotCurseDotCom(documentURL string, resp *http.Response) (*ModsDotC
 		return nil, fmt.Errorf("error resolving value 'Average Downloads'")
 	}
 	// Format of this value: "nnn Monthly Downloads" -> get the first & second 'field'
-	split := strings.Fields(strings.TrimSpace(parseString))
+	split := strings.Fields(parseString)
 	results.AvgDownloads, err = strconv.ParseUint(strings.Replace(split[0], ",", "", -1), 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing number for 'Average Downloads': %s", err.Error())
@@ -181,7 +181,7 @@ func ParseModsDotCurseDotCom(documentURL string, resp *http.Response) (*ModsDotC
 		return nil, fmt.Errorf("error resolving value 'Total Downloads'")
 	}
 	// Format of this value: "nnn Total Downloads" -> get the first 'field'
-	parseString = strings.Fields(strings.TrimSpace(parseString))[0]
+	parseString = strings.Fields(parseString)[0]
 	results.TotalDownloads, err = strconv.ParseUint(strings.Replace(parseString, ",", "", -1), 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing number for 'Total Downloads': %s", err.Error())
@@ -205,7 +205,7 @@ func ParseModsDotCurseDotCom(documentURL string, resp *http.Response) (*ModsDotC
 		return nil, fmt.Errorf("error resolving value 'Favorites'")
 	}
 	// Format of this value: "nnn Favorites" -> get the first 'field'
-	parseString = strings.Fields(strings.TrimSpace(parseString))[0]
+	parseString = strings.Fields(parseString)[0]
 	results.Favorites, err = strconv.ParseUint(strings.Replace(parseString, ",", "", -1), 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing number for 'Favorites': %s", err.Error())
@@ -222,7 +222,7 @@ func ParseModsDotCurseDotCom(documentURL string, resp *http.Response) (*ModsDotC
 	if !ok {
 		return nil, fmt.Errorf("error resolving value 'License'")
 	}
-	results.License = strings.TrimPrefix(strings.TrimSpace(parseString), "License: ")
+	results.License = strings.TrimPrefix(parseString, "License: ")
 
 	// Screenshots
 	iter = pathCache.Iter(root, "//div[@id='screenshot-gallery']//div[@class='listing-body']/ul/li/a")
@@ -243,7 +243,7 @@ func ParseModsDotCurseDotCom(documentURL string, resp *http.Response) (*ModsDotC
 	iter = pathCache.Iter(root, "//div[@id='tab-other-downloads']//div[@class='listing-body']/table/tbody/tr")
 	for iter.Next() {
 		downloadNode := iter.Node()
-		download := Download{}
+		download := File{}
 
 		// Name
 		download.Name, ok = pathCache.String(downloadNode, "td[1]/a")

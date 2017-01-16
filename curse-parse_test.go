@@ -35,12 +35,12 @@ func TestParseModsDotCurseDotCom(t *testing.T) {
 	for idx, url := range testUrls {
 		resp, err := FetchPage(url)
 		if err != nil {
-			t.Fatal(err)
+			t.Fatal(url, err)
 		}
 
 		results, err := ParseModsDotCurseDotCom(url, resp)
 		if err != nil {
-			t.Fatal(err)
+			t.Fatal(url, err)
 		}
 
 		// For first element (taam project page), check for existence of the donation URL.

@@ -59,6 +59,7 @@ func FetchCurseForge(projectURL *url.URL, sections CurseForgeSections, options C
 
 	} else {
 		//TODO: Build required URLs & fetch
+
 	}
 	return results, nil
 }
@@ -376,6 +377,61 @@ func parseCFOverview(results *CurseforgeDotCom, documentURL *url.URL, root *xmlp
 }
 
 func parseCFFiles(results *CurseforgeDotCom, documentURL *url.URL, root *xmlpath.Node, options CurseForgeOptions) error {
+
+	// Parse the files on the first page
+	err := parseCFFilesSinglePage(results, documentURL, root, options)
+	if err != nil {
+		return fmt.Errorf("error parsing first files page: %s", err.Error())
+	}
+
+	// Stop if no pagination is requested
+	if options.Has(CFOptionFilesNoPagination) {
+		return nil
+	}
+
+	// Get the number of pages
+	// (Last page is definitely listed as single element, so we just look for the one with the highest number)
+	// (Could be optimized probably..)
+	pagination := pathCache.Iter(root, "//div[@class='listing-header']//a[@class='b-pagination-item']")
+	var pageCount uint64 = 0
+	for pagination.Next() {
+		pNode := pagination.Node()
+		val, err := ParseUInt(pNode.String())
+		if err != nil {
+			return fmt.Errorf("error parsing page number: %s", err.Error())
+		}
+		// Just to be sure, compare if it is actually larger...
+		if val > pageCount {
+			pageCount = val
+		}
+	}
+
+	// Sequentially, load the file pages
+	var page uint64
+	for page = 2; page <= pageCount; page++ {
+		resp, err := FetchPage(documentURL.ResolveReference(&url.URL{
+			Path:"files",
+			RawQuery:fmt.Sprintf("page=%i", page),
+		}).String())
+		if err != nil {
+			return fmt.Errorf("error fetching subsequent files page (%i): %s", page, err.Error())
+		}
+
+		root, err := xmlpath.ParseHTML(resp.Body)
+		if err != nil {
+			return fmt.Errorf("error parsing xml/http for subsequent files page (%i): %s", page, err.Error())
+		}
+
+		err = parseCFFilesSinglePage(results, documentURL, root, options)
+		if err != nil {
+			return fmt.Errorf("error parsing first files page: %s", err.Error())
+		}
+	}
+
+	return nil
+}
+
+func parseCFFilesSinglePage(results *CurseforgeDotCom, documentURL *url.URL, root *xmlpath.Node, options CurseForgeOptions) error {
 	var ok bool
 	var err error
 
@@ -432,8 +488,5 @@ func parseCFFiles(results *CurseforgeDotCom, documentURL *url.URL, root *xmlpath
 
 		results.Downloads = append(results.Downloads, file)
 	}
-
-	//TODO: pagination
-
 	return nil
 }

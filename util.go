@@ -120,6 +120,10 @@ func (cache *XpathCache) URL(context *xmlpath.Node, path string) (*url.URL, erro
 	if !ok {
 		return nil, errors.New("node not found")
 	}
+	return ParseURL(urlString)
+}
+
+func ParseURL(urlString string) (*url.URL, error) {
 	// Parse to url
 	url, err := url.Parse(urlString)
 	if err != nil {
@@ -186,7 +190,19 @@ func (cache *XpathCache) UInt(context *xmlpath.Node, path string) (uint64, error
 	if !ok {
 		return 0, errors.New("node not found")
 	}
-	return strconv.ParseUint(strings.Replace(parseString, ",", "", -1), 10, 64)
+	return ParseUInt(parseString)
+}
+
+func ParseUInt(parseString string) (uint64, error) {
+	// Extra failsafe for external calls, but not required internally
+	str := strings.TrimSpace(parseString)
+	// Download counts of '0' are represented as '-'
+	if str == "-" {
+		return 0, nil
+	}
+	// No decimal separators please..
+	str = strings.Replace(parseString, ",", "", -1)
+	return strconv.ParseUint(str, 10, 64)
 }
 
 // Wrapper around path.String(context).
@@ -197,7 +213,19 @@ func (cache *XpathCache) Int(context *xmlpath.Node, path string) (int64, error) 
 	if !ok {
 		return 0, errors.New("node not found")
 	}
-	return strconv.ParseInt(strings.Replace(parseString, ",", "", -1), 10, 64)
+	return ParseInt(parseString)
+}
+
+func ParseInt(parseString string) (int64, error) {
+	// Extra failsafe for external calls, but not required internally
+	str := strings.TrimSpace(parseString)
+	// Download counts of '0' are represented as '-'
+	if str == "-" {
+		return 0, nil
+	}
+	// No decimal separators please..
+	str = strings.Replace(parseString, ",", "", -1)
+	return strconv.ParseInt(str, 10, 64)
 }
 
 // Wrapper around path.String(context).

@@ -475,15 +475,15 @@ func parseCFFiles(results *CurseforgeDotCom, documentURL *url.URL, root *xmlpath
 	for page = 2; page <= pageCount; page++ {
 		resp, err := FetchPage(documentURL.ResolveReference(&url.URL{
 			Path:"files",
-			RawQuery:fmt.Sprintf("page=%i", page),
+			RawQuery:fmt.Sprintf("page=%d", page),
 		}).String())
 		if err != nil {
-			return fmt.Errorf("error fetching subsequent files page (%i): %s", page, err.Error())
+			return fmt.Errorf("error fetching subsequent files page (%d): %s", page, err.Error())
 		}
 
 		root, err := xmlpath.ParseHTML(resp.Body)
 		if err != nil {
-			return fmt.Errorf("error parsing xml/http for subsequent files page (%i): %s", page, err.Error())
+			return fmt.Errorf("error parsing xml/http for subsequent files page (%d): %s", page, err.Error())
 		}
 
 		err = parseCFFilesSinglePage(results, documentURL, root, options)

@@ -22,7 +22,34 @@ import (
 	"strings"
 	//"github.com/gobs/pretty"
 	"net/url"
+	"github.com/gobs/pretty"
 )
+
+func TestDeriveCurseForgeURLs(t *testing.T) {
+	projectURL, err := url.Parse("https://minecraft.curseforge.com/projects/taam")
+	if err != nil {
+		t.Fatal("Parsing rest URL", err.Error())
+	}
+	urls, err := DeriveCurseForgeURLs(projectURL)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	if "https://minecraft.curseforge.com/projects/taam/files" != urls[CFSectionFiles].String() {
+		t.Errorf("Expected '%s', got '%s'", "https://minecraft.curseforge.com/projects/taam/files", urls[CFSectionFiles].String())
+	}
+
+	projectURL, err = url.Parse("https://minecraft.curseforge.com/projects/taam/")
+	if err != nil {
+		t.Fatal("Parsing rest URL", err.Error())
+	}
+	urls, err = DeriveCurseForgeURLs(projectURL)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	if "https://minecraft.curseforge.com/projects/taam/files" != urls[CFSectionFiles].String() {
+		t.Errorf("Expected '%s', got '%s'", "https://minecraft.curseforge.com/projects/taam/files", urls[CFSectionFiles].String())
+	}
+}
 
 func TestParseModsDotCurseDotCom(t *testing.T) {
 	testUrls := []string{
@@ -186,6 +213,7 @@ func validateResults(t *testing.T, url string, results *ModsDotCurseDotCom, expe
 func TestParseCurseforgeDotCom(t *testing.T) {
 	testUrls := []string{
 		"https://minecraft.curseforge.com/projects/taam",
+		"https://wow.curseforge.com/projects/pawn",
 	}
 
 	for idx, tURL := range testUrls {
@@ -206,7 +234,7 @@ func TestParseCurseforgeDotCom(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		//pretty.PrettyPrint(results)
+		pretty.PrettyPrint(results)
 
 		// For first element (taam project page), check for existence of the donation URL.
 		validateResultsCurseforge(t, tURL, results, idx == 0)
@@ -214,6 +242,32 @@ func TestParseCurseforgeDotCom(t *testing.T) {
 	}
 }
 
+
+func TestFetchCurseForge(t *testing.T) {
+	testUrls := []string{
+		"https://minecraft.curseforge.com/projects/taam",
+		"https://wow.curseforge.com/projects/pawn",
+	}
+
+	for idx, tURL := range testUrls {
+		var pURL *url.URL
+		pURL, err := url.Parse(tURL)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		results, err := FetchCurseForge(pURL, CFSectionOverview | CFSectionFiles, CFOptionNone)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		pretty.PrettyPrint(results)
+
+		// For first element (taam project page), check for existence of the donation URL.
+		validateResultsCurseforge(t, tURL, results, idx == 0)
+
+	}
+}
 
 func validateResultsCurseforge(t *testing.T, url string, results *CurseforgeDotCom, expectDonationURL bool) {
 
@@ -242,12 +296,13 @@ func validateResultsCurseforge(t *testing.T, url string, results *CurseforgeDotC
 	if results.IssuesURL == nil || results.IssuesURL.Host == "" {
 		t.Errorf("Empty value 'IssuesURL' when testing URL %s", url)
 	}
-	if results.WikiURL == nil || results.WikiURL.Host == "" {
+	//TODO: optionally test these (based on expected values, like donation URL)
+	/*if results.WikiURL == nil || results.WikiURL.Host == "" {
 		t.Errorf("Empty value 'WikiURL' when testing URL %s", url)
 	}
 	if results.SourceURL == nil || results.SourceURL.Host == "" {
 		t.Errorf("Empty value 'SourceURL' when testing URL %s", url)
-	}
+	}*/
 
 
 	if results.Title == "" {

@@ -23,7 +23,37 @@ import (
 	"strings"
 
 	"gopkg.in/xmlpath.v2"
+	"path"
 )
+
+func DeriveCurseForgeURLs(projectURL *url.URL) (map[CurseForgeSections]*url.URL, error) {
+	urls := make(map[CurseForgeSections]*url.URL, 5)
+	relatives := make(map[CurseForgeSections]string, 5)
+	relatives[CFSectionFiles] = "files"
+	relatives[CFSectionImages] = "images"
+
+	// Overview does not have a "subfolder"
+	urls[CFSectionOverview] = projectURL
+
+	var err error
+
+	for section, rel := range relatives {
+		urls[section] = &url.URL{
+			Path: path.Join(projectURL.Path, rel),
+			Host: projectURL.Host,
+			Scheme: projectURL.Scheme,
+			User: projectURL.User,
+			ForceQuery: projectURL.ForceQuery,
+			Fragment: projectURL.Fragment,
+			Opaque: projectURL.Opaque,
+			RawQuery: projectURL.RawQuery,
+		}
+		if err != nil {
+			return nil, fmt.Errorf("Error deriving url '%s': %s", rel, err.Error())
+		}
+	}
+	return urls, nil
+}
 
 // Fetch & parse mod pages from curseforge.com
 // (minecraft.curseforge.com, or feed-the-beast.com, or or or - For a complete list, see curseforge.com).
@@ -37,29 +67,50 @@ import (
 //      If 0 (CFHeader) is passed only, the overview page
 //      is loaded and only the header values are parsed & returned.
 //      Multiple values can be added to select multiple sections, e.g. CFSectionFiles | CFSectionImages
-//      This causes multiple sequential or parallel requests to CurseForge.
+//      This causes multiple sequential requests to CurseForge.
 // options: Pass CFOptionNone, or one or more of the other options to tweak some behaviour of the content parsers.
 //      Multiple values can be added to define multiple options, e.g. CFOptionOverviewRecentFiles | CFOptionFilesNoPagination
-// parallel: Select whether to make parallel or sequential calls.
-//      Pass true to load all selected pages simultaneously.
-//      Disclaimer: Be aware that CurseForge might impose rate limiting on you should you overdo the parallelism.
-func FetchCurseForge(projectURL *url.URL, sections CurseForgeSections, options CurseForgeOptions, parallel bool) (*CurseforgeDotCom, error) {
-	var err error
+func FetchCurseForge(projectURL *url.URL, sections CurseForgeSections, options CurseForgeOptions) (*CurseforgeDotCom, error) {
 	results := new(CurseforgeDotCom)
 
+	// if the requested section is 0 (CFSectionHeader) we load the overview page, and only parse the header
 	if sections == CFSectionHeader {
 		//TODO: WHY does that require a string??
 		var resp *http.Response
 
-		resp, err = FetchPage(projectURL.String())
+		resp, err := FetchPage(projectURL.String())
 		if err != nil {
 			return nil, err
 		}
 		err = ParseCurseForge(projectURL, resp, results, true, CFSectionHeader, options)
 
 	} else {
-		//TODO: Build required URLs & fetch
 
+		// Derive all the "subfolders" for the sections
+		urls, err := DeriveCurseForgeURLs(projectURL)
+		if err != nil {
+			return nil, err
+		}
+
+		// Fetch & parse the sections subsequently, only parsing the header on the first call
+		doHeader := true
+		for section, url := range urls {
+			// Only load specified sections
+			if sections.Has(section) {
+				// Fetch
+				resp, err := FetchPage(url.String())
+				if err != nil {
+					return nil, fmt.Errorf("Error fetching URL '%s': %s", url.String(), err.Error())
+				}
+				// Parse
+				err = ParseCurseForge(url, resp, results, doHeader, section, options)
+				if err != nil {
+					return nil, fmt.Errorf("Error parsing URL '%s': %s", url.String(), err.Error())
+				}
+				// Skip header on all subsequent calls
+				doHeader = false
+			}
+		}
 	}
 	return results, nil
 }
@@ -93,6 +144,16 @@ func ParseCurseForge(documentURL *url.URL, resp *http.Response, results *Cursefo
 		err = parseCFOverview(results, documentURL, root, options)
 		if err != nil {
 			return fmt.Errorf("error processing CF Overview: %s", err.Error())
+		}
+	case CFSectionFiles:
+		err = parseCFFiles(results, documentURL, root, options)
+		if err != nil {
+			return fmt.Errorf("error processing CF Files: %s", err.Error())
+		}
+	case CFSectionImages:
+		err = parseCFImages(results, documentURL, root, options)
+		if err != nil {
+			return fmt.Errorf("error processing CF Files: %s", err.Error())
 		}
 	}
 
@@ -132,15 +193,17 @@ func parseCFHeader(results *CurseforgeDotCom, documentURLParsed *url.URL, root *
 		return fmt.Errorf("error resolving value 'Issues URL': %s", err.Error())
 	}
 
+	// can be empty / non-present
 	results.WikiURL, err = pathCache.URLWithBaseURL(navbar, "//li/a[contains(text(), 'Wiki')]/@href", documentURLParsed)
-	if err != nil {
+	/*if err != nil {
 		return fmt.Errorf("error resolving value 'Wiki URL': %s", err.Error())
-	}
+	}*/
 
+	// can be empty / non-present
 	results.SourceURL, err = pathCache.URLWithBaseURL(navbar, "//li/a[contains(text(), 'Source')]/@href", documentURLParsed)
-	if err != nil {
+	/*if err != nil {
 		return fmt.Errorf("error resolving value 'Source URL': %s", err.Error())
-	}
+	}*/
 
 	results.DependenciesURL, err = pathCache.URLWithBaseURL(navbar, "//li/a[contains(text(), 'Dependencies')]/@href", documentURLParsed)
 	if err != nil {
@@ -209,10 +272,11 @@ func parseCFHeader(results *CurseforgeDotCom, documentURLParsed *url.URL, root *
 		return fmt.Errorf("error resolving value 'ImageThumbnailURL': %s", err.Error())
 	}
 	// Donation URL
+	// can be empty / non-present
 	results.DontationURL, err = pathCache.URL(atf, "//a[@class='button tip icon-donate icon-paypal']/@href")
-	if err != nil {
+	/*if err != nil {
 		return fmt.Errorf("error resolving value 'DontationURL': %s", err.Error())
-	}
+	}*/
 
 	return nil
 }
@@ -465,7 +529,7 @@ func parseCFFilesSinglePage(results *CurseforgeDotCom, documentURL *url.URL, roo
 		file.HasAdditionalFiles = ok
 
 
-		file.SizeInfo, ok = pathCache.String(fileTag, "//td[@class='project-file-size']/a/text()")
+		file.SizeInfo, ok = pathCache.String(fileTag, "//td[@class='project-file-size']/text()")
 		if !ok {
 			return fmt.Errorf("error resolving value 'File/SizeInfo'")
 		}
@@ -488,5 +552,14 @@ func parseCFFilesSinglePage(results *CurseforgeDotCom, documentURL *url.URL, roo
 
 		results.Downloads = append(results.Downloads, file)
 	}
+	return nil
+}
+
+func parseCFImages(results *CurseforgeDotCom, documentURL *url.URL, root *xmlpath.Node, options CurseForgeOptions) error {
+	//var ok bool
+	//var err error
+
+	//TODO: implement
+
 	return nil
 }

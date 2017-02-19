@@ -43,9 +43,6 @@ func DeriveCurseForgeURLs(projectURL *url.URL) (map[CurseForgeSections]*url.URL,
 			Host: projectURL.Host,
 			Scheme: projectURL.Scheme,
 			User: projectURL.User,
-			ForceQuery: projectURL.ForceQuery,
-			Fragment: projectURL.Fragment,
-			Opaque: projectURL.Opaque,
 			RawQuery: projectURL.RawQuery,
 		}
 		if err != nil {

@@ -21,56 +21,6 @@ import (
 	"time"
 )
 
-type CurseForgeSections uint8
-
-const (
-	// Header information is always parsed from the first page loaded.
-	// Pass only this to load the overview page but only parse the header info.
-	CFSectionHeader CurseForgeSections = 0
-	// The overview page.
-	// Parses the "About this Project" section & other values from the sidebar.
-	// Does not include description or comments.
-	// Also does not include recent files. Use the option CFOptionOverviewRecentFiles to include them.
-	CFSectionOverview = 1
-	// The files page.
-	// Parses all files of the file page. Multiple pages will be requested sequentially.
-	// (always, even when using parallel=true)
-	// Use the option CFOptionFilesNoPagination to load only the first page.
-	CFSectionFiles  = 2
-	CFSectionImages = 4
-	// Reserved should we ever want to parse issues on the internal issue tracker.
-	_ = 8
-)
-
-// Returns true if this sections-selection has the bit for sec set.
-func (s CurseForgeSections) Has(sec CurseForgeSections) bool {
-	if sec == CFSectionHeader {
-		return true
-	}
-	return (s & sec) != 0
-}
-
-type CurseForgeOptions uint8
-
-const (
-	CFOptionNone CurseForgeOptions = 0
-	// When parsing the overview page, also parse the recent files.
-	// They will end up in the same location as when parsing the files page, so files will contain duplicate if you
-	// also load the files page when using this. They will also be missing the game version tag, as that is not easily
-	// accessible (or even at all for some curseforge sites).
-	CFOptionOverviewRecentFiles = 1
-	// When parsing the files page
-	CFOptionFilesNoPagination = 2
-)
-
-// Returns true if this option has the bit for opt set.
-func (o CurseForgeOptions) Has(opt CurseForgeOptions) bool {
-	if opt == CFOptionNone {
-		return true
-	}
-	return (o & opt) != 0
-}
-
 type Author struct {
 	Name     string
 	Role     string
@@ -84,15 +34,15 @@ type Image struct {
 }
 
 type File struct {
-	Name               string
-	URL                *url.URL
-	DirectURL          *url.URL
-	ReleaseType        string
-	GameVersion        string
-	Downloads          uint64
-	Date               time.Time
+	Name        string
+	URL         *url.URL
+	DirectURL   *url.URL
+	ReleaseType string
+	GameVersion string
+	Downloads   uint64
+	Date        time.Time
 	// The size info as printed on the page, unparsed
-	SizeInfo    string
+	SizeInfo           string
 	HasAdditionalFiles bool
 }
 
@@ -108,7 +58,8 @@ type Dependency struct {
 	ImageURL *url.URL
 }
 
-type ModsDotCurseDotCom struct {
+// Curse represents a single project parsed from mods.curse.com.
+type Curse struct {
 	Title        string
 	DontationURL *url.URL
 
@@ -135,7 +86,9 @@ type ModsDotCurseDotCom struct {
 	Downloads   []File
 }
 
-type CurseforgeDotCom struct {
+// CurseForge represents a single project parsed from curseforge.com.
+// The data can be parsed from several sub-pages, though.
+type CurseForge struct {
 	OverviewURL     *url.URL
 	FilesURL        *url.URL
 	ImagesURL       *url.URL

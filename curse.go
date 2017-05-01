@@ -27,13 +27,13 @@ import (
 	"gopkg.in/xmlpath.v2"
 )
 
-// Parse mod pages from mods.curse.com.
+// ParseCurse parses mod pages from mods.curse.com.
 // Supported & tested examples:
 // * https://mods.curse.com/mc-mods/minecraft/238424-taam
 // * https://mods.curse.com/texture-packs/minecraft/equanimity-32x
 // * https://mods.curse.com/worlds/minecraft/246026-skyblock-3
 // * https://mods.curse.com/addons/wow/pawn
-func ParseModsDotCurseDotCom(documentURL string, resp *http.Response) (*ModsDotCurseDotCom, error) {
+func ParseCurse(documentURL string, resp *http.Response) (*Curse, error) {
 	defer resp.Body.Close()
 
 	documentURLParsed, err := url.Parse(strings.TrimSpace(documentURL))
@@ -46,7 +46,7 @@ func ParseModsDotCurseDotCom(documentURL string, resp *http.Response) (*ModsDotC
 		return nil, fmt.Errorf("error parsing xml/http: %s", err.Error())
 	}
 
-	results := new(ModsDotCurseDotCom)
+	results := new(Curse)
 
 	var ok bool
 	// Temp-Variable for values to be parsed

@@ -118,11 +118,11 @@ func validateResultsCurseforge(t *testing.T, url string, results *CurseForge, ex
 	if results.ReportProjectURL == nil || results.ReportProjectURL.Host == "" {
 		t.Errorf("Empty value 'ReportProjectURL' when testing URL %s", url)
 	}
-	if results.IssuesURL == nil || results.IssuesURL.Host == "" {
+	//TODO: optionally test these (based on expected values, like donation URL)
+	/*if results.IssuesURL == nil || results.IssuesURL.Host == "" {
 		t.Errorf("Empty value 'IssuesURL' when testing URL %s", url)
 	}
-	//TODO: optionally test these (based on expected values, like donation URL)
-	/*if results.WikiURL == nil || results.WikiURL.Host == "" {
+	if results.WikiURL == nil || results.WikiURL.Host == "" {
 		t.Errorf("Empty value 'WikiURL' when testing URL %s", url)
 	}
 	if results.SourceURL == nil || results.SourceURL.Host == "" {

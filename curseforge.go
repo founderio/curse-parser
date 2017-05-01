@@ -261,10 +261,11 @@ func parseCFHeader(results *CurseForge, documentURLParsed *url.URL, root *xmlpat
 		return fmt.Errorf("error resolving value 'Images URL': %s", err.Error())
 	}
 
+	// can be empty / non-present
 	results.IssuesURL, err = pathCache.URLWithBaseURL(navbar, "//li/a[contains(text(), 'Issues')]/@href", documentURLParsed)
-	if err != nil {
+	/*if err != nil {
 		return fmt.Errorf("error resolving value 'Issues URL': %s", err.Error())
-	}
+	}*/
 
 	// can be empty / non-present
 	results.WikiURL, err = pathCache.URLWithBaseURL(navbar, "//li/a[contains(text(), 'Wiki')]/@href", documentURLParsed)

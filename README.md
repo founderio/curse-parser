@@ -16,7 +16,7 @@ go get github.com/founderio/curse-parser
 The documentation for this package can be found at https://godoc.org/github.com/founderio/curse-parser. (Or run godoc locally)
 
 Examples:
-```
+```go
 package yourcode
 
 import (

@@ -581,40 +581,40 @@ func parseCFFilesSinglePage(results *CurseForge, documentURL *url.URL, root *xml
 			return fmt.Errorf("error resolving value 'File/ReleaseType'")
 		}
 
-		file.DirectURL, err = pathCache.URLWithBaseURL(fileTag, "//div[@class='project-file-download-button']/a/@href", documentURL)
+		file.DirectURL, err = pathCache.URLWithBaseURL(fileTag, "td//div[@class='project-file-download-button']/a/@href", documentURL)
 		if err != nil {
 			return fmt.Errorf("error resolving value 'File/DirectURL': %s", err.Error())
 		}
 
-		file.URL, err = pathCache.URLWithBaseURL(fileTag, "//div[@class='project-file-name-container']/a/@href", documentURL)
+		file.URL, err = pathCache.URLWithBaseURL(fileTag, "td//div[@class='project-file-name-container']/a/@href", documentURL)
 		if err != nil {
 			return fmt.Errorf("error resolving value 'File/URL': %s", err.Error())
 		}
 
-		file.Name, ok = pathCache.String(fileTag, "//div[@class='project-file-name-container']/a/text()")
+		file.Name, ok = pathCache.String(fileTag, "td//div[@class='project-file-name-container']/a/text()")
 		if !ok {
 			return fmt.Errorf("error resolving value 'File/Name'")
 		}
 
-		_, ok = pathCache.String(fileTag, "//div[@class='project-file-name-container']/a[@class='more-files-tag']")
+		_, ok = pathCache.String(fileTag, "td//div[@class='project-file-name-container']/a[@class='more-files-tag']")
 		file.HasAdditionalFiles = ok
 
-		file.SizeInfo, ok = pathCache.String(fileTag, "//td[@class='project-file-size']/text()")
+		file.SizeInfo, ok = pathCache.String(fileTag, "td[@class='project-file-size']/text()")
 		if !ok {
 			return fmt.Errorf("error resolving value 'File/SizeInfo'")
 		}
 
-		file.Date, err = pathCache.UnixTimestamp(fileTag, "//abbr/@data-epoch")
+		file.Date, err = pathCache.UnixTimestamp(fileTag, "td//abbr/@data-epoch")
 		if err != nil {
 			return fmt.Errorf("error resolving value 'File/Date': %s", err.Error())
 		}
 
-		file.GameVersion, ok = pathCache.String(fileTag, "//span[@class='version-label']/text()")
+		file.GameVersion, ok = pathCache.String(fileTag, "td//span[@class='version-label']/text()")
 		if !ok {
 			return fmt.Errorf("error resolving value 'File/GameVersion'")
 		}
 
-		file.Downloads, err = pathCache.UInt(fileTag, "//td[@class='project-file-downloads']/text()")
+		file.Downloads, err = pathCache.UInt(fileTag, "td[@class='project-file-downloads']/text()")
 		if err != nil {
 			return fmt.Errorf("error resolving value 'File/Downloads': %s", err.Error())
 		}

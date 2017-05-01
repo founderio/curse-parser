@@ -17,12 +17,10 @@ Copyright 2017 Oliver Kahrmann
 package curse
 
 import (
+	"net/url"
+	"strings"
 	"testing"
 	"time"
-	"strings"
-	//"github.com/gobs/pretty"
-	"net/url"
-	"github.com/gobs/pretty"
 )
 
 func TestDeriveCurseForgeURLs(t *testing.T) {
@@ -82,7 +80,7 @@ func validateResults(t *testing.T, url string, results *ModsDotCurseDotCom, expe
 	if len(results.Downloads) == 0 {
 		t.Errorf("Empty list 'Downloads' when testing URL %s", url)
 	}
-	for _,dl := range results.Downloads {
+	for _, dl := range results.Downloads {
 
 		if dl.Date == time.Unix(0, 0).UTC() {
 			t.Errorf("Empty value 'Download/Date' when testing URL %s", url)
@@ -107,7 +105,7 @@ func validateResults(t *testing.T, url string, results *ModsDotCurseDotCom, expe
 	if len(results.Authors) == 0 {
 		t.Errorf("Empty list 'Authors' when testing URL %s", url)
 	}
-	for _,a := range results.Authors {
+	for _, a := range results.Authors {
 		if a.Name == "" {
 			t.Errorf("Empty value 'Author/Name' when testing URL %s", url)
 		}
@@ -132,7 +130,7 @@ func validateResults(t *testing.T, url string, results *ModsDotCurseDotCom, expe
 	if len(results.Screenshots) == 0 {
 		t.Errorf("Empty list 'Screenshots' when testing URL %s", url)
 	}
-	for _,s := range results.Screenshots {
+	for _, s := range results.Screenshots {
 
 		if s.URL == nil || s.URL.Host == "" {
 			t.Errorf("Empty value 'Screenshot/URL' when testing URL %s", url)
@@ -147,7 +145,7 @@ func validateResults(t *testing.T, url string, results *ModsDotCurseDotCom, expe
 	if len(results.Categories) == 0 {
 		t.Errorf("Empty list 'Categories' when testing URL %s", url)
 	}
-	for _,c := range results.Categories {
+	for _, c := range results.Categories {
 
 		if c.URL == nil || c.URL.Host == "" {
 			t.Errorf("Empty value 'Category/URL' when testing URL %s", url)
@@ -234,14 +232,11 @@ func TestParseCurseforgeDotCom(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		pretty.PrettyPrint(results)
-
 		// For first element (taam project page), check for existence of the donation URL.
 		validateResultsCurseforge(t, tURL, results, idx == 0)
 
 	}
 }
-
 
 func TestFetchCurseForge(t *testing.T) {
 	testUrls := []string{
@@ -256,12 +251,10 @@ func TestFetchCurseForge(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		results, err := FetchCurseForge(pURL, CFSectionOverview | CFSectionFiles, CFOptionNone)
+		results, err := FetchCurseForge(pURL, CFSectionOverview|CFSectionFiles, CFOptionNone)
 		if err != nil {
 			t.Fatal(err)
 		}
-
-		pretty.PrettyPrint(results)
 
 		// For first element (taam project page), check for existence of the donation URL.
 		validateResultsCurseforge(t, tURL, results, idx == 0)
@@ -303,7 +296,6 @@ func validateResultsCurseforge(t *testing.T, url string, results *CurseforgeDotC
 	if results.SourceURL == nil || results.SourceURL.Host == "" {
 		t.Errorf("Empty value 'SourceURL' when testing URL %s", url)
 	}*/
-
 
 	if results.Title == "" {
 		t.Errorf("Empty value 'Title' when testing URL %s", url)
@@ -355,11 +347,10 @@ func validateResultsCurseforge(t *testing.T, url string, results *CurseforgeDotC
 		t.Errorf("Empty value 'Updated' when testing URL %s", url)
 	}
 
-
 	if len(results.Authors) == 0 {
 		t.Errorf("Empty list 'Authors' when testing URL %s", url)
 	}
-	for _,a := range results.Authors {
+	for _, a := range results.Authors {
 		if a.Name == "" {
 			t.Errorf("Empty value 'Author/Name' when testing URL %s", url)
 		}
@@ -383,7 +374,7 @@ func validateResultsCurseforge(t *testing.T, url string, results *CurseforgeDotC
 	if len(results.Categories) == 0 {
 		t.Errorf("Empty list 'Categories' when testing URL %s", url)
 	}
-	for _,c := range results.Categories {
+	for _, c := range results.Categories {
 
 		if c.URL == nil || c.URL.Host == "" {
 			t.Errorf("Empty value 'Category/URL' when testing URL %s", url)
